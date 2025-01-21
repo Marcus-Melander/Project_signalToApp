@@ -8,19 +8,15 @@
     android:gravity="center">
 
     <Button
+        android:id="@+id/mStartGame"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/mAcceleratorButton"
-        android:text="Accelerometer Lab"/>
+        android:text="Start game" />
+
     <Button
-        android:layout_width="match_parent"
+        android:id="@+id/mInstructions"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/mRecorderButton"
-        android:text="Audio Lab"/>
-    <Button
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:id="@+id/mVideoButton"
-        android:text="@string/vidButton"/>
+        android:text="Instructions" />
 
 </LinearLayout>
