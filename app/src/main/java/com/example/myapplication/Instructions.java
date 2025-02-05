@@ -18,5 +18,4 @@ public class Instructions extends AppCompatActivity {
             startActivity(startRecordActivityIntent);
         });
     }
-
 }
