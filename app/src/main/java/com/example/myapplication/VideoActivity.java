@@ -25,7 +25,8 @@ import androidx.core.app.ActivityCompat;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 
-public class recordingActivity extends AppCompatActivity {
+public class VideoActivity extends AppCompatActivity {
+
     private ImageView processedImageView;
     private CameraDevice cameraDevice;
     private CameraCaptureSession cameraCaptureSession;
@@ -34,7 +35,6 @@ public class recordingActivity extends AppCompatActivity {
     private Handler backgroundHandler;
     private HandlerThread backgroundThread;
     private Handler mainHandler;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,8 +51,22 @@ public class recordingActivity extends AppCompatActivity {
         try {
             String cameraId = cameraManager.getCameraIdList()[0];
             CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
-            Size previewSize = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-                    .getOutputSizes(SurfaceTexture.class)[0];
+            Size[] supportedSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                    .getOutputSizes(SurfaceTexture.class);
+            // Select the smallest size available
+            Size previewSize = supportedSizes[supportedSizes.length - 4];
+
+            // Find a specific size (e.g., 640x480 which is widely supported)
+            Size targetSize = null;
+            for (Size size : supportedSizes) {
+                if (size.getWidth() == 640 && size.getHeight() == 480) {
+                    targetSize = size;
+                    break;
+                }
+            }
+            if (targetSize != null) {
+                previewSize = targetSize;
+            }
 
             imageReader = ImageReader.newInstance(previewSize.getWidth(), previewSize.getHeight(),
                     ImageFormat.YUV_420_888, 2);
@@ -62,7 +76,6 @@ public class recordingActivity extends AppCompatActivity {
                 return;
             }
             cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
-
                 @Override
                 public void onOpened(@NonNull CameraDevice camera) {
                     cameraDevice = camera;
@@ -144,6 +157,7 @@ public class recordingActivity extends AppCompatActivity {
             }
         });
     }
+
     private void processImage(Image image) {
 
         // Process the image data by first converting into an RGB Bitmap
@@ -189,10 +203,18 @@ public class recordingActivity extends AppCompatActivity {
 
                 // Clamp RGB values to 0-255
                 r = Math.min(Math.max(r, 0), 255);
+                r = 200;
                 g = Math.min(Math.max(g, 0), 255);
                 b = Math.min(Math.max(b, 0), 255);
 
+                if(x < 50 && y < 50){
+                    g = 255;
+                    r = 0;
+                    b = 0;
+                }
+
                 //Here you can insert code to modify the pixel values
+
 
                 // Set RGB pixel in array
                 rgbArray[y * width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
