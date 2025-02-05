@@ -1,5 +1,6 @@
 package com.example.myapplication;
 
+import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
@@ -17,6 +18,7 @@ import android.util.Range;
 import android.util.Size;
 import android.view.Surface;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -24,6 +26,7 @@ import androidx.core.app.ActivityCompat;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Random;
 
 public class VideoActivity extends AppCompatActivity {
 
@@ -35,6 +38,8 @@ public class VideoActivity extends AppCompatActivity {
     private Handler backgroundHandler;
     private HandlerThread backgroundThread;
     private Handler mainHandler;
+    private TextView txtViewMimic;
+    private TextView txtViewGuess;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +49,7 @@ public class VideoActivity extends AppCompatActivity {
         mainHandler = new Handler(Looper.getMainLooper());
         processedImageView = findViewById(R.id.processedImageView);
         openCamera();
+        setEmojiToMimic();
     }
 
     private void openCamera() {
@@ -282,6 +288,45 @@ public class VideoActivity extends AppCompatActivity {
         Matrix matrix = new Matrix();
         matrix.postRotate(degrees);
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+    }
+
+    @SuppressLint("SetTextI18n")
+    private void setEmojiToMimic() {
+        TextView txtViewMimic = (TextView)findViewById(R.id.mMimic);
+
+        Random rand = new Random();
+        int num = rand.nextInt(3);
+
+        if(num == 0) {
+            txtViewMimic.setText("Sad");
+        } else if (num == 1) {
+            txtViewMimic.setText("Happy");
+        } else if (num == 2) {
+            txtViewMimic.setText("Angry");
+        }
+        this.txtViewMimic = txtViewMimic;
+    }
+
+    private void setGuessedEmoji(){
+        // TODO: call method every time a new guess is made!
+        TextView txtViewGuess = (TextView) findViewById(R.id.mGuess);
+        txtViewGuess.setText(guessEmoji());
+        this.txtViewGuess = txtViewGuess;
+    }
+
+    private void guessEqualsMimic(){
+        //TextView txtViewPoints = (TextView) findViewById(R.id.mPoints);
+        //TODO: call every time new guess is made!
+        int counter = 0;
+        if(txtViewGuess.getText().equals(txtViewMimic.getText())){
+            counter ++;
+
+        }
+    }
+
+    private String guessEmoji(){
+        // TODO: implement method in working thread!
+        return "hej";
     }
 
 
