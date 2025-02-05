@@ -25,7 +25,8 @@ import androidx.core.app.ActivityCompat;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 
-public class recordingActivity extends AppCompatActivity {
+public class VideoActivity extends AppCompatActivity {
+
     private ImageView processedImageView;
     private CameraDevice cameraDevice;
     private CameraCaptureSession cameraCaptureSession;
@@ -34,7 +35,6 @@ public class recordingActivity extends AppCompatActivity {
     private Handler backgroundHandler;
     private HandlerThread backgroundThread;
     private Handler mainHandler;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,10 +49,24 @@ public class recordingActivity extends AppCompatActivity {
     private void openCamera() {
         CameraManager cameraManager = (CameraManager) getSystemService(CAMERA_SERVICE);
         try {
-            String cameraId = cameraManager.getCameraIdList()[0];
+            String cameraId = cameraManager.getCameraIdList()[1];
             CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
-            Size previewSize = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-                    .getOutputSizes(SurfaceTexture.class)[0];
+            Size[] supportedSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                    .getOutputSizes(SurfaceTexture.class);
+            // Select the smallest size available
+            Size previewSize = supportedSizes[supportedSizes.length - 4];
+
+            // Find a specific size (e.g., 640x480 which is widely supported)
+            Size targetSize = null;
+            for (Size size : supportedSizes) {
+                if (size.getWidth() == 640 && size.getHeight() == 480) {
+                    targetSize = size;
+                    break;
+                }
+            }
+            if (targetSize != null) {
+                previewSize = targetSize;
+            }
 
             imageReader = ImageReader.newInstance(previewSize.getWidth(), previewSize.getHeight(),
                     ImageFormat.YUV_420_888, 2);
@@ -62,7 +76,6 @@ public class recordingActivity extends AppCompatActivity {
                 return;
             }
             cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
-
                 @Override
                 public void onOpened(@NonNull CameraDevice camera) {
                     cameraDevice = camera;
@@ -95,7 +108,7 @@ public class recordingActivity extends AppCompatActivity {
 
             // Set the desired frame rate range
             CameraManager cameraManager = (CameraManager) getSystemService(CAMERA_SERVICE);
-            String cameraId = cameraManager.getCameraIdList()[0];
+            String cameraId = cameraManager.getCameraIdList()[1];
             CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
             Range<Integer>[] fpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
 
@@ -144,6 +157,7 @@ public class recordingActivity extends AppCompatActivity {
             }
         });
     }
+
     private void processImage(Image image) {
 
         // Process the image data by first converting into an RGB Bitmap
@@ -151,7 +165,21 @@ public class recordingActivity extends AppCompatActivity {
 
         // Update the ImageView on the UI thread
         if (bitmap != null) {
-            mainHandler.post(() -> processedImageView.setImageBitmap(bitmap));
+            Matrix matrix = new Matrix();
+            matrix.postRotate(180);
+            matrix.preScale(-1.0f, 1.0f);
+
+            Bitmap rotatedBitmap = Bitmap.createBitmap(
+                    bitmap,
+                    0,
+                    0,
+                    bitmap.getWidth(),
+                    bitmap.getHeight(),
+                    matrix,
+                    true
+            );
+
+            mainHandler.post(() -> processedImageView.setImageBitmap(rotatedBitmap));
         }
     }
     private Bitmap yuvToRgbBitmap(Image image) {
@@ -169,6 +197,15 @@ public class recordingActivity extends AppCompatActivity {
         int uvPixelStride = planes[1].getPixelStride();
 
         int[] rgbArray = new int[width * height];
+
+        // Pre-calculate the coordinates for the centered 300x300 square.
+        int squareSize = 300;
+        int cornerLineLength = 70;
+        int thickness = 3;
+        int squareLeft = width / 2 - squareSize / 2;
+        int squareTop = height / 2 - squareSize / 2;
+        int squareRight = squareLeft + squareSize;
+        int squareBottom = squareTop + squareSize;
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
@@ -192,10 +229,42 @@ public class recordingActivity extends AppCompatActivity {
                 g = Math.min(Math.max(g, 0), 255);
                 b = Math.min(Math.max(b, 0), 255);
 
-                //Here you can insert code to modify the pixel values
+
+                // Determine if the current pixel falls within any of the 2-pixel thick corner outline segments.
+                boolean isTopLeftHorizontal = (y >= squareTop && y < squareTop + thickness &&
+                        x >= squareLeft && x < squareLeft + cornerLineLength);
+                boolean isTopLeftVertical   = (x >= squareLeft && x < squareLeft + thickness &&
+                        y >= squareTop && y < squareTop + cornerLineLength);
+
+                boolean isTopRightHorizontal = (y >= squareTop && y < squareTop + thickness &&
+                        x >= squareRight - cornerLineLength && x < squareRight);
+                boolean isTopRightVertical   = (x >= squareRight - thickness && x < squareRight &&
+                        y >= squareTop && y < squareTop + cornerLineLength);
+
+                boolean isBottomLeftHorizontal = (y >= squareBottom - thickness && y < squareBottom &&
+                        x >= squareLeft && x < squareLeft + cornerLineLength);
+                boolean isBottomLeftVertical   = (x >= squareLeft && x < squareLeft + thickness &&
+                        y >= squareBottom - cornerLineLength && y < squareBottom);
+
+                boolean isBottomRightHorizontal = (y >= squareBottom - thickness && y < squareBottom &&
+                        x >= squareRight - cornerLineLength && x < squareRight);
+                boolean isBottomRightVertical   = (x >= squareRight - thickness && x < squareRight &&
+                        y >= squareBottom - cornerLineLength && y < squareBottom);
+
+                // If the pixel lies on any of these segments, set it to white.
+                if (isTopLeftHorizontal || isTopLeftVertical ||
+                        isTopRightHorizontal || isTopRightVertical ||
+                        isBottomLeftHorizontal || isBottomLeftVertical ||
+                        isBottomRightHorizontal || isBottomRightVertical) {
+                    rgbArray[y * width + x] = 0xFFFFFFFF; // White pixel (ARGB)
+                } else {
+                    // Otherwise, set the pixel to the calculated RGB value.
+                    rgbArray[y * width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
+                }
+
 
                 // Set RGB pixel in array
-                rgbArray[y * width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
+                // rgbArray[y * width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
             }
         }
 
