@@ -6,8 +6,8 @@ import org.tensorflow.lite.Interpreter;
 public class EmotionProcessingThread extends Thread {
     private Interpreter tfliteInterpreter;
 
-    public EmotionProcessingThread(AssetManager assetManager, workbuffer b, datafile d){
+    /*public EmotionProcessingThread(AssetManager assetManager, workbuffer b, datafile d){
         TFLiteModelLoader modelLoader = new TFLiteModelLoader(assetManager, "assets/Emotion_detection_V1.0.tflite");
         tfliteInterpreter = modelLoader.getInterpreter();
-    }
+    }*/
 }
