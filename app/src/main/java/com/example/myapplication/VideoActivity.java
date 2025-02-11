@@ -47,13 +47,6 @@ public class VideoActivity extends AppCompatActivity {
     private TextView txtViewMimic = findViewById(R.id.mMimic);
     private TextView txtViewGuess = findViewById(R.id.mGuess);
     private Integer points = 0;
-    private static final String bufferFile = "workBufferFile.txt";
-    private static final int bufferSize = 1024;
-    private static final int workBufferSize = bufferSize*10; //ev. ta bort
-    private int frameCounter = 0;
-    private static final int MAX_BUFFER_SIZE = 10;
-    private final ArrayBlockingQueue<byte[]> frameBuffer = new ArrayBlockingQueue<>(MAX_BUFFER_SIZE);
-    private Thread processingThread;
     private TextView txtPoints = findViewById(R.id.mPoints);
 
 
@@ -66,19 +59,19 @@ public class VideoActivity extends AppCompatActivity {
         processedImageView = findViewById(R.id.processedImageView);
         openCamera();
 
-        Button startStop = findViewById(R.id.mStart);
+       /* Button startStop = findViewById(R.id.mStart);
         startStop.setOnClickListener(view -> {
             if (!hasStarted) {
-                startGame();
                 startStop.setText("Stop");
                 hasStarted = true;
+                startGame();
             }
-            if (!hasStarted) {
+            if (hasStarted) {
                 stopGame();
                 startStop.setText("Sart");
                 hasStarted = false;
             }
-        });
+        });*/
     }
 
     private void openCamera() {
@@ -193,59 +186,7 @@ public class VideoActivity extends AppCompatActivity {
         });
     }
 
-    /*private void depracatedonImageAvailable(ImageReader reader) {
-        Image image = null;
-        try {
-            // Try to acquire the latest image. If you’re falling behind, this helps drop older frames.
-            image = reader.acquireLatestImage();
-            if (image != null) {
-                int i = 5;
-                frameCounter++;
-                // For YUV_420_888, the image has three planes.
-                // In this example, we use only the Y (luminance) plane.
-                // If you need full YUV data, you should copy all three planes.
-                if (frameCounter % i == 0) {
-                    ByteBuffer yBuffer = image.getPlanes()[0].getBuffer();
-                    byte[] yBytes = new byte[yBuffer.remaining()];
-                    yBuffer.get(yBytes);
-                    // Insert the frame into your working buffer.
-                    // If the buffer is full, remove the oldest frame first.
-                    synchronized (frameBuffer) {
-                        if (frameBuffer.remainingCapacity() == 0) {
-                            // Remove the oldest frame to make room
-                            frameBuffer.poll();
-                        }
-                        frameBuffer.offer(yBytes);
-                    }
-                }
-            }
-        } finally {
-            if (image != null) {
-                // Always close the image when finished to free up resources.
-                image.close();
-            }
-        }
-    }*/
-
-    private void processFrames() {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (!Thread.currentThread().isInterrupted()) {
-                    try {
-                        // This call will block until a frame is available.
-                        byte[] frame = frameBuffer.take();
-                        // Process the frame as needed.
-                        processFrame(frame);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            }
-        }).start();
-    }
-
-    private void processFrame(byte[] frame) {
+    private void processFrame(Bitmap bitmap) {
         Random rand = new Random();
         int num = rand.nextInt(3);
 
@@ -282,6 +223,8 @@ public class VideoActivity extends AppCompatActivity {
                     matrix,
                     true
             );
+
+            processFrame(bitmap);
 
             mainHandler.post(() -> processedImageView.setImageBitmap(bitmap));
         }
@@ -389,27 +332,16 @@ public class VideoActivity extends AppCompatActivity {
     }
 
     private void startGame(){
+        openCamera();
         setEmojiToMimic();
-        processFrames();
+        onResume();
     }
 
     private void stopGame(){
         txtViewMimic.setText("");
         txtViewGuess.setText("");
         txtPoints.setText("0");
-        if (processingThread != null) {
-            processingThread.interrupt();
-            try {
-                // Optionally, wait for the thread to finish execution.
-                processingThread.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            processingThread = null;
-        }
-
-        // Optionally clear the frame buffer if you don't need the pending frames:
-        frameBuffer.clear();
+        onPause();
     }
 
     @SuppressLint("SetTextI18n")
@@ -427,13 +359,6 @@ public class VideoActivity extends AppCompatActivity {
         }
     }
 
-    private void setGuessedEmoji(){
-        // TODO: call method every time a new guess is made!
-        TextView txtViewGuess = (TextView) findViewById(R.id.mGuess);
-        txtViewGuess.setText(guessEmoji());
-        this.txtViewGuess = txtViewGuess;
-    }
-
     private void guessEqualsMimic(){
         if (txtViewGuess.getText().equals(txtViewMimic.getText())){
             points++;
@@ -442,12 +367,6 @@ public class VideoActivity extends AppCompatActivity {
             setEmojiToMimic();
         }
     }
-
-    private String guessEmoji(){
-        // TODO: implement method in working thread!
-        return "hej";
-    }
-
 
     private void closeCamera() {
         if (cameraCaptureSession != null) {
