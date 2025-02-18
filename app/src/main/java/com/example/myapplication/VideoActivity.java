@@ -40,6 +40,9 @@ public class VideoActivity extends AppCompatActivity {
     private Handler mainHandler;
     private TextView txtViewMimic;
     private TextView txtViewGuess;
+    private Integer points = 0;
+    private int guessedEmoji;
+    private int mimicEmoji;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -184,6 +187,7 @@ public class VideoActivity extends AppCompatActivity {
                     matrix,
                     true
             );
+            setGuessedEmoji();
 
             mainHandler.post(() -> processedImageView.setImageBitmap(rotatedBitmap));
         }
@@ -299,28 +303,47 @@ public class VideoActivity extends AppCompatActivity {
 
         if(num == 0) {
             txtViewMimic.setText("Sad");
+            mimicEmoji = 0;
         } else if (num == 1) {
             txtViewMimic.setText("Happy");
+            mimicEmoji = 1;
         } else if (num == 2) {
             txtViewMimic.setText("Angry");
+            mimicEmoji = 2;
         }
         this.txtViewMimic = txtViewMimic;
     }
 
     private void setGuessedEmoji(){
-        // TODO: call method every time a new guess is made!
-        TextView txtViewGuess = (TextView) findViewById(R.id.mGuess);
-        txtViewGuess.setText(guessEmoji());
+        TextView txtViewGuess = (TextView)findViewById(R.id.mGuess);
+
+        Random rand = new Random();
+        int num = rand.nextInt(3);
+
+
+
+        if(num == 0) {
+            txtViewGuess.setText("Sad");
+            guessedEmoji = 0;
+        } else if (num == 1) {
+            txtViewGuess.setText("Happy");
+            guessedEmoji = 1;
+        } else if (num == 2) {
+            txtViewGuess.setText("Angry");
+            guessedEmoji = 2;
+        }
         this.txtViewGuess = txtViewGuess;
+        guessEqualsMimic();
     }
 
     private void guessEqualsMimic(){
-        //TextView txtViewPoints = (TextView) findViewById(R.id.mPoints);
-        //TODO: call every time new guess is made!
-        int counter = 0;
-        if(txtViewGuess.getText().equals(txtViewMimic.getText())){
-            counter ++;
+        TextView txtViewPoints = (TextView) findViewById(R.id.mPoints);
 
+        if(mimicEmoji == guessedEmoji){
+            points++;
+            String currentPoints = points.toString();
+            txtViewPoints.setText(currentPoints);
+            setEmojiToMimic();
         }
     }
 
