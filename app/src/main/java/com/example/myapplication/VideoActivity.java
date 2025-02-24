@@ -3,8 +3,11 @@ package com.example.myapplication;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.*;
 import android.media.Image;
@@ -171,11 +174,12 @@ public class VideoActivity extends AppCompatActivity {
 
         // Process the image data by first converting into an RGB Bitmap
         Bitmap bitmap = yuvToRgbBitmap(image);
+        int[][] pixelsToUse = pixelsToUse(bitmap);
 
         // Update the ImageView on the UI thread
         if (bitmap != null) {
             Matrix matrix = new Matrix();
-            matrix.postRotate(180);
+            matrix.postRotate(90);
             matrix.preScale(-1.0f, 1.0f);
 
             Bitmap rotatedBitmap = Bitmap.createBitmap(
@@ -187,11 +191,23 @@ public class VideoActivity extends AppCompatActivity {
                     matrix,
                     true
             );
+            mainHandler.post(() -> processedImageView.setImageBitmap(rotatedBitmap));
+
+            // TODO: avkommentera 4 rader och använd de istället.
+            //if(containsFace(pixelsToUse)){
+                //int guess = guessEmoji(int[][] pixelsToUse);
+                //setGuessedEmoji(int guess);
+            //}
             setGuessedEmoji();
 
-            mainHandler.post(() -> processedImageView.setImageBitmap(rotatedBitmap));
         }
     }
+    private boolean containsFace(int[][] matrix){
+        // TODO: call model to check for face
+
+        return true;
+    }
+
     private Bitmap yuvToRgbBitmap(Image image) {
         int width = image.getWidth();
         int height = image.getHeight();
@@ -239,8 +255,7 @@ public class VideoActivity extends AppCompatActivity {
                 g = Math.min(Math.max(g, 0), 255);
                 b = Math.min(Math.max(b, 0), 255);
 
-
-                // Determine if the current pixel falls within any of the 2-pixel thick corner outline segments.
+                // Check if the pixel belongs to the square
                 boolean isTopLeftHorizontal = (y >= squareTop && y < squareTop + thickness &&
                         x >= squareLeft && x < squareLeft + cornerLineLength);
                 boolean isTopLeftVertical   = (x >= squareLeft && x < squareLeft + thickness &&
@@ -261,20 +276,14 @@ public class VideoActivity extends AppCompatActivity {
                 boolean isBottomRightVertical   = (x >= squareRight - thickness && x < squareRight &&
                         y >= squareBottom - cornerLineLength && y < squareBottom);
 
-                // If the pixel lies on any of these segments, set it to white.
                 if (isTopLeftHorizontal || isTopLeftVertical ||
                         isTopRightHorizontal || isTopRightVertical ||
                         isBottomLeftHorizontal || isBottomLeftVertical ||
                         isBottomRightHorizontal || isBottomRightVertical) {
                     rgbArray[y * width + x] = 0xFFFFFFFF; // White pixel (ARGB)
                 } else {
-                    // Otherwise, set the pixel to the calculated RGB value.
                     rgbArray[y * width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
                 }
-
-
-                // Set RGB pixel in array
-                // rgbArray[y * width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
             }
         }
 
@@ -282,12 +291,98 @@ public class VideoActivity extends AppCompatActivity {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         bitmap.setPixels(rgbArray, 0, width, 0, 0, width, height);
 
+        // TODO: erase
         //Rotate the bitmap 90 degrees (required for correct display on Xperia XA1)
-        int totalRotation=90;
-        Bitmap rotatedBitmap = rotateBitmap(bitmap, totalRotation);
+        //int totalRotation=270;
+        //Bitmap rotatedBitmap = rotateBitmap(bitmap, totalRotation);
 
-        return rotatedBitmap;
+        return bitmap;
     }
+
+
+    public int[][] pixelsToUse(Bitmap bitmap) {
+        // Determine the bitmap dimensions.
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+
+        // Define the centered 300x300 white square.
+        int squareSize = 300;
+        int squareLeft = width / 2 - squareSize / 2;
+        int squareTop = height / 2 - squareSize / 2;
+
+        // Define the inner region (299x299) by offsetting 1 pixel to avoid the white border.
+        int regionX = squareLeft + 1;
+        int regionY = squareTop + 1;
+        int regionWidth = 299;
+        int regionHeight = 299;
+
+        // Extract the inner region from the bitmap.
+        Bitmap innerBitmap = Bitmap.createBitmap(bitmap, regionX, regionY, regionWidth, regionHeight);
+
+        // Prepare to compute grayscale intensities and the histogram.
+        int[][] intensityMatrix = new int[regionHeight][regionWidth];
+        int[] histogram = new int[256]; // for intensity values 0-255, initially all zeros.
+
+        // First pass: compute grayscale intensity for each pixel and build histogram.
+        for (int y = 0; y < regionHeight; y++) {
+            for (int x = 0; x < regionWidth; x++) {
+                int pixel = innerBitmap.getPixel(x, y);
+                int r = Color.red(pixel);
+                int g = Color.green(pixel);
+                int b = Color.blue(pixel);
+                // Calculate luminance using a common formula (Rec. 601)
+                int luminance = (int)(0.299 * r + 0.587 * g + 0.114 * b);
+                intensityMatrix[y][x] = luminance;
+                histogram[luminance]++;
+            }
+        }
+
+        // Compute the cumulative distribution function (CDF) for the histogram.
+        int[] cdf = new int[256];
+        cdf[0] = histogram[0];
+        for (int i = 1; i < 256; i++) {
+            cdf[i] = cdf[i - 1] + histogram[i];
+        }
+
+        // Find the minimum nonzero value in the CDF.
+        int cdfMin = 0;
+        for (int i = 0; i < 256; i++) {
+            if (cdf[i] != 0) {
+                cdfMin = cdf[i];
+                break;
+            }
+        }
+
+        int totalPixels = regionWidth * regionHeight;
+
+        // Build a lookup table using the histogram equalization formula:
+        // new_value = round((cdf[value] - cdfMin) / (totalPixels - cdfMin) * 255)
+        int[] lut = new int[256];
+        for (int i = 0; i < 256; i++) {
+            lut[i] = Math.round(((float)(cdf[i] - cdfMin) / (totalPixels - cdfMin)) * 255);
+        }
+
+        // Apply the lookup table to generate the normalized intensity matrix.
+        int[][] normalizedMatrix = new int[regionHeight][regionWidth];
+        for (int y = 0; y < regionHeight; y++) {
+            for (int x = 0; x < regionWidth; x++) {
+                normalizedMatrix[y][x] = lut[intensityMatrix[y][x]];
+            }
+        }
+
+        // TODO: erase
+        // If a binary (black and white) matrix is required after normalization,
+        // you could threshold the normalized intensities as follows:
+        // for (int y = 0; y < regionHeight; y++) {
+        //     for (int x = 0; x < regionWidth; x++) {
+        //         normalizedMatrix[y][x] = normalizedMatrix[y][x] > 128 ? 1 : 0;
+        //     }
+        // }
+
+        return normalizedMatrix;
+    }
+
+    // TODO: erase
     private Bitmap rotateBitmap(Bitmap bitmap, int degrees) {
         Matrix matrix = new Matrix();
         matrix.postRotate(degrees);
@@ -314,13 +409,20 @@ public class VideoActivity extends AppCompatActivity {
         this.txtViewMimic = txtViewMimic;
     }
 
+    private int guessEmoji(int[][] pixels){
+        int guess = 0;
+        // TODO: kalla på modellen och låt den returnera ett värde för guess
+
+        return guess;
+    }
+
     private void setGuessedEmoji(){
         TextView txtViewGuess = (TextView)findViewById(R.id.mGuess);
 
+        // TODO: låt metoden ta en int som input och byt efter det ut random mot den inten.
+
         Random rand = new Random();
         int num = rand.nextInt(3);
-
-
 
         if(num == 0) {
             txtViewGuess.setText("Sad");
