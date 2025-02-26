@@ -40,7 +40,7 @@
             android:lineSpacingExtra="16sp"
             android:textAlignment="center"
             android:textColor="@color/white"
-            android:textSize="24sp"
+            android:textSize="40sp"
             android:textStyle="bold" />
 
         <TextView
@@ -68,7 +68,7 @@
             android:lineSpacingExtra="16sp"
             android:textAlignment="center"
             android:textColor="@color/white"
-            android:textSize="24sp"
+            android:textSize="40sp"
             android:textStyle="bold" />
 
 
