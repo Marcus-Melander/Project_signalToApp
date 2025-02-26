@@ -8,6 +8,7 @@
     <string name="Instructions">How to play:
         Hold the phone so that your face fits inside the square, try to mimic the emoji to the left, the emoji to the right represents the games guess.
         You get a point for every emoji you can mimic. Have fun! </string>
+    <string name="CameraXButton" />
 
 
 </resources>

@@ -110,6 +110,7 @@ import android.view.View;
 import android.widget.Button;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.camera2.internal.compat.quirk.PreviewOrientationIncorrectQuirk;
 import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.lifecycle.ProcessCameraProvider;
@@ -117,9 +118,11 @@ import androidx.core.content.ContextCompat;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import androidx.camera.core.Preview;
+import androidx.camera.view.PreviewView;
 
 public class CameraXActivity extends AppCompatActivity {
-    private TextureView viewFinder;
+    private PreviewView viewFinder;
     private ExecutorService cameraExecutor;
 
     @Override
@@ -148,8 +151,12 @@ public class CameraXActivity extends AppCompatActivity {
                         .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
                         .build();
 
+                Preview preview = new Preview.Builder().build();
+                preview.setSurfaceProvider(viewFinder.getSurfaceProvider());
+
+
                 Camera camera = cameraProvider.bindToLifecycle(
-                        this, cameraSelector, new androidx.camera.view.Preview.Builder().build());
+                        this, cameraSelector, preview);
 
             } catch (Exception e) {
                 Log.e("CameraXActivity", "Use case binding failed", e);
