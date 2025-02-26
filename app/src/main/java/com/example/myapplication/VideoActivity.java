@@ -27,6 +27,10 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+import org.tensorflow.lite.Interpreter;
+
+import com.example.myapplication.TFLiteModelLoader;
+
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Random;
@@ -194,15 +198,13 @@ public class VideoActivity extends AppCompatActivity {
             mainHandler.post(() -> processedImageView.setImageBitmap(rotatedBitmap));
 
             // TODO: avkommentera 4 rader och använd de istället.
-            //if(containsFace(pixelsToUse)){
-                //int guess = guessEmoji(int[][] pixelsToUse);
-                //setGuessedEmoji(int guess);
-            //}
-            setGuessedEmoji();
-
+            if(containsFace(pixelsToUse)){
+                int guess = guessEmoji(pixelsToUse);
+                setGuessedEmoji(guess);
+            }
         }
     }
-    private boolean containsFace(int[][] matrix){
+    private boolean containsFace(float[][][][] matrix){
         // TODO: call model to check for face
 
         return true;
@@ -435,18 +437,35 @@ public class VideoActivity extends AppCompatActivity {
         this.txtViewMimic = txtViewMimic;
     }
 
-    private int guessEmoji(int[][] pixels){
-        int guess = 0;
-        // TODO: kalla på modellen och låt den returnera ett värde för guess
+    private int guessEmoji(float[][][][] input){
 
-        return guess;
+        // 4. Define the output tensor; adjust NUM_CLASSES based on your model's output dimensions.
+        int NUM_CLASSES = 3;  // Update this if your model predicts a different number of classes
+        float[][] output = new float[1][NUM_CLASSES];
+
+        // 5. Get the TFLite interpreter instance and run inference.
+        TFLiteModelLoader tfliteModel = TFLiteModelLoader.getInstance(getApplicationContext());
+        Interpreter interpreter = tfliteModel.getInterpreter();
+        interpreter.run(input, output);
+
+        // 6. Find the index with the highest probability.
+        int maxIndex = 0;
+        for (int i = 1; i < NUM_CLASSES; i++) {
+            if (output[0][i] > output[0][maxIndex]) {
+                maxIndex = i;
+            }
+        }
+
+        return maxIndex;
+
+
     }
 
-    private void setGuessedEmoji(){
+    private void setGuessedEmoji(int guess){
         TextView txtViewGuess = (TextView)findViewById(R.id.mGuess);
 
         // TODO: låt metoden ta en int som input och byt efter det ut random mot den inten. (ta in matris)
-        // int num = guessEmoji(int[][] pixels)
+        int num = guess;
 
         Random rand = new Random();
         int num = rand.nextInt(3);
