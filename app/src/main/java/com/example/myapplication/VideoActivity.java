@@ -397,13 +397,22 @@ public class VideoActivity extends AppCompatActivity {
         int num = rand.nextInt(3);
 
         if(num == 0) {
-            txtViewMimic.setText("Sad");
+            // undicode for sad
+            int unicode = 0x1F622;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewMimic.setText(emoji);
             mimicEmoji = 0;
         } else if (num == 1) {
-            txtViewMimic.setText("Happy");
+            // unicoe for happy
+            int unicode = 0x1F604;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewMimic.setText(emoji);
             mimicEmoji = 1;
         } else if (num == 2) {
-            txtViewMimic.setText("Angry");
+            // unicode for angry
+            int unicode = 0x1F621;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewMimic.setText(emoji);
             mimicEmoji = 2;
         }
         this.txtViewMimic = txtViewMimic;
@@ -419,25 +428,37 @@ public class VideoActivity extends AppCompatActivity {
     private void setGuessedEmoji(){
         TextView txtViewGuess = (TextView)findViewById(R.id.mGuess);
 
-        // TODO: låt metoden ta en int som input och byt efter det ut random mot den inten.
+        // TODO: låt metoden ta en int som input och byt efter det ut random mot den inten. (ta in matris)
+        // int num = guessEmoji(int[][] pixels)
 
         Random rand = new Random();
         int num = rand.nextInt(3);
 
         if(num == 0) {
-            txtViewGuess.setText("Sad");
+            // sad
+            int unicode = 0x1F622;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewGuess.setText(emoji);
             guessedEmoji = 0;
         } else if (num == 1) {
-            txtViewGuess.setText("Happy");
+            // happy
+            int unicode = 0x1F604;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewGuess.setText(emoji);
             guessedEmoji = 1;
         } else if (num == 2) {
-            txtViewGuess.setText("Angry");
+            // angry
+            int unicode = 0x1F621;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewGuess.setText(emoji);
             guessedEmoji = 2;
         }
         this.txtViewGuess = txtViewGuess;
         guessEqualsMimic();
     }
-
+    public String getEmojiByUnicode(int unicode){
+        return new String(Character.toChars(unicode));
+    }
     private void guessEqualsMimic(){
         TextView txtViewPoints = (TextView) findViewById(R.id.mPoints);
 
@@ -448,12 +469,6 @@ public class VideoActivity extends AppCompatActivity {
             setEmojiToMimic();
         }
     }
-
-    private String guessEmoji(){
-        // TODO: implement method in working thread!
-        return "hej";
-    }
-
 
     private void closeCamera() {
         if (cameraCaptureSession != null) {
