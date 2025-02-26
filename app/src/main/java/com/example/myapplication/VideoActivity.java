@@ -467,8 +467,8 @@ public class VideoActivity extends AppCompatActivity {
         // TODO: låt metoden ta en int som input och byt efter det ut random mot den inten. (ta in matris)
         int num = guess;
 
-        Random rand = new Random();
-        int num = rand.nextInt(3);
+        //Random rand = new Random();
+        //int num = rand.nextInt(3);
 
         if(num == 0) {
             // sad
