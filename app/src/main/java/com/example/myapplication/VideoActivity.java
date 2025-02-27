@@ -50,6 +50,9 @@ public class VideoActivity extends AppCompatActivity {
     private Integer points = 0;
     private int guessedEmoji;
     private int mimicEmoji;
+    private Thread thread;
+
+    boolean running=false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -178,7 +181,7 @@ public class VideoActivity extends AppCompatActivity {
 
         // Process the image data by first converting into an RGB Bitmap
         Bitmap bitmap = yuvToRgbBitmap(image);
-        float[][][][] pixelsToUse = pixelsToUse(bitmap);
+
 
         // Update the ImageView on the UI thread
         if (bitmap != null) {
@@ -196,11 +199,19 @@ public class VideoActivity extends AppCompatActivity {
                     true
             );
             mainHandler.post(() -> processedImageView.setImageBitmap(rotatedBitmap));
+            if (!running) {
+                thread = new Thread(() -> {
+                    running = true;
+                    float[][][][] pixelsToUse = pixelsToUse(bitmap);
+                    if (containsFace(pixelsToUse)) {
 
-            // TODO: avkommentera 4 rader och använd de istället.
-            if(containsFace(pixelsToUse)){
-                int guess = guessEmoji(pixelsToUse);
-                setGuessedEmoji(guess);
+                        int guess = guessEmoji(pixelsToUse);
+                        setGuessedEmoji(guess);
+                        running = false;
+                    }
+                });
+                thread.start();
+
             }
         }
     }
