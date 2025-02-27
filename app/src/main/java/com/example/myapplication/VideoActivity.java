@@ -3,8 +3,11 @@ package com.example.myapplication;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.*;
 import android.media.Image;
@@ -23,6 +26,10 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+
+import org.tensorflow.lite.Interpreter;
+
+import com.example.myapplication.TFLiteModelLoader;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -43,6 +50,9 @@ public class VideoActivity extends AppCompatActivity {
     private Integer points = 0;
     private int guessedEmoji;
     private int mimicEmoji;
+    private Thread thread;
+
+    boolean running=false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -172,10 +182,11 @@ public class VideoActivity extends AppCompatActivity {
         // Process the image data by first converting into an RGB Bitmap
         Bitmap bitmap = yuvToRgbBitmap(image);
 
+
         // Update the ImageView on the UI thread
         if (bitmap != null) {
             Matrix matrix = new Matrix();
-            matrix.postRotate(180);
+            matrix.postRotate(90);
             matrix.preScale(-1.0f, 1.0f);
 
             Bitmap rotatedBitmap = Bitmap.createBitmap(
@@ -187,11 +198,29 @@ public class VideoActivity extends AppCompatActivity {
                     matrix,
                     true
             );
-            setGuessedEmoji();
-
             mainHandler.post(() -> processedImageView.setImageBitmap(rotatedBitmap));
+            if (!running) {
+                thread = new Thread(() -> {
+                    running = true;
+                    float[][][][] pixelsToUse = pixelsToUse(bitmap);
+                    if (containsFace(pixelsToUse)) {
+
+                        int guess = guessEmoji(pixelsToUse);
+                        setGuessedEmoji(guess);
+                        running = false;
+                    }
+                });
+                thread.start();
+
+            }
         }
     }
+    private boolean containsFace(float[][][][] matrix){
+        // TODO: call model to check for face
+
+        return true;
+    }
+
     private Bitmap yuvToRgbBitmap(Image image) {
         int width = image.getWidth();
         int height = image.getHeight();
@@ -239,8 +268,7 @@ public class VideoActivity extends AppCompatActivity {
                 g = Math.min(Math.max(g, 0), 255);
                 b = Math.min(Math.max(b, 0), 255);
 
-
-                // Determine if the current pixel falls within any of the 2-pixel thick corner outline segments.
+                // Check if the pixel belongs to the square
                 boolean isTopLeftHorizontal = (y >= squareTop && y < squareTop + thickness &&
                         x >= squareLeft && x < squareLeft + cornerLineLength);
                 boolean isTopLeftVertical   = (x >= squareLeft && x < squareLeft + thickness &&
@@ -261,20 +289,14 @@ public class VideoActivity extends AppCompatActivity {
                 boolean isBottomRightVertical   = (x >= squareRight - thickness && x < squareRight &&
                         y >= squareBottom - cornerLineLength && y < squareBottom);
 
-                // If the pixel lies on any of these segments, set it to white.
                 if (isTopLeftHorizontal || isTopLeftVertical ||
                         isTopRightHorizontal || isTopRightVertical ||
                         isBottomLeftHorizontal || isBottomLeftVertical ||
                         isBottomRightHorizontal || isBottomRightVertical) {
                     rgbArray[y * width + x] = 0xFFFFFFFF; // White pixel (ARGB)
                 } else {
-                    // Otherwise, set the pixel to the calculated RGB value.
                     rgbArray[y * width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
                 }
-
-
-                // Set RGB pixel in array
-                // rgbArray[y * width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
             }
         }
 
@@ -282,12 +304,115 @@ public class VideoActivity extends AppCompatActivity {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         bitmap.setPixels(rgbArray, 0, width, 0, 0, width, height);
 
+        // TODO: erase
         //Rotate the bitmap 90 degrees (required for correct display on Xperia XA1)
-        int totalRotation=90;
-        Bitmap rotatedBitmap = rotateBitmap(bitmap, totalRotation);
+        //int totalRotation=270;
+        //Bitmap rotatedBitmap = rotateBitmap(bitmap, totalRotation);
 
-        return rotatedBitmap;
+        return bitmap;
     }
+    public float[][][][] pixelsToUse(Bitmap bitmap) {
+        // Get the bitmap dimensions.
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+
+        // Define the centered 300x300 white square.
+        int squareSize = 300;
+        int squareLeft = width / 2 - squareSize / 2;
+        int squareTop = height / 2 - squareSize / 2;
+
+        // Define the inner region: offset by 1 pixel from the border to get 299x299.
+        int regionX = squareLeft + 1;
+        int regionY = squareTop + 1;
+        int regionWidth = 299;
+        int regionHeight = 299;
+
+        // Extract the inner region from the bitmap.
+        Bitmap innerBitmap = Bitmap.createBitmap(bitmap, regionX, regionY, regionWidth, regionHeight);
+
+        // Prepare histograms for each RGB channel (0-255 bins).
+        int[] histR = new int[256];
+        int[] histG = new int[256];
+        int[] histB = new int[256];
+
+        // Store channel values for later processing.
+        int[][] redChannel   = new int[regionHeight][regionWidth];
+        int[][] greenChannel = new int[regionHeight][regionWidth];
+        int[][] blueChannel  = new int[regionHeight][regionWidth];
+
+        // First pass: Extract RGB values and build histograms.
+        for (int i = 0; i < regionHeight; i++) {
+            for (int j = 0; j < regionWidth; j++) {
+                int pixel = innerBitmap.getPixel(j, i);
+                int r = Color.red(pixel);
+                int g = Color.green(pixel);
+                int b = Color.blue(pixel);
+                redChannel[i][j]   = r;
+                greenChannel[i][j] = g;
+                blueChannel[i][j]  = b;
+                histR[r]++;
+                histG[g]++;
+                histB[b]++;
+            }
+        }
+
+        // Compute cumulative distribution functions (CDF) for each channel.
+        int[] cdfR = new int[256];
+        int[] cdfG = new int[256];
+        int[] cdfB = new int[256];
+        cdfR[0] = histR[0];
+        cdfG[0] = histG[0];
+        cdfB[0] = histB[0];
+        for (int i = 1; i < 256; i++) {
+            cdfR[i] = cdfR[i - 1] + histR[i];
+            cdfG[i] = cdfG[i - 1] + histG[i];
+            cdfB[i] = cdfB[i - 1] + histB[i];
+        }
+
+        // Find the minimum non-zero CDF values for each channel.
+        int cdfMinR = 0, cdfMinG = 0, cdfMinB = 0;
+        for (int i = 0; i < 256; i++) {
+            if (cdfR[i] != 0) { cdfMinR = cdfR[i]; break; }
+        }
+        for (int i = 0; i < 256; i++) {
+            if (cdfG[i] != 0) { cdfMinG = cdfG[i]; break; }
+        }
+        for (int i = 0; i < 256; i++) {
+            if (cdfB[i] != 0) { cdfMinB = cdfB[i]; break; }
+        }
+
+        int totalPixels = regionWidth * regionHeight;
+
+        // Build lookup tables (LUT) for each channel using the histogram equalization formula:
+        // new_value = round((cdf[value] - cdfMin) / (totalPixels - cdfMin) * 255)
+        int[] lutR = new int[256];
+        int[] lutG = new int[256];
+        int[] lutB = new int[256];
+        for (int i = 0; i < 256; i++) {
+            lutR[i] = Math.round(((float)(cdfR[i] - cdfMinR) / (totalPixels - cdfMinR)) * 255);
+            lutG[i] = Math.round(((float)(cdfG[i] - cdfMinG) / (totalPixels - cdfMinG)) * 255);
+            lutB[i] = Math.round(((float)(cdfB[i] - cdfMinB) / (totalPixels - cdfMinB)) * 255);
+        }
+
+        // Create the output array with shape [1][299][299][3].
+        float[][][][] output = new float[1][regionHeight][regionWidth][3];
+
+        // Apply the LUT to each pixel's RGB channels, normalize to [0,1] (dividing by 255), and store in the output array.
+        for (int i = 0; i < regionHeight; i++) {
+            for (int j = 0; j < regionWidth; j++) {
+                int newR = lutR[ redChannel[i][j] ];
+                int newG = lutG[ greenChannel[i][j] ];
+                int newB = lutB[ blueChannel[i][j] ];
+                output[0][i][j][0] = newR / 255.0f;
+                output[0][i][j][1] = newG / 255.0f;
+                output[0][i][j][2] = newB / 255.0f;
+            }
+        }
+
+        return output;
+    }
+
+    // TODO: erase
     private Bitmap rotateBitmap(Bitmap bitmap, int degrees) {
         Matrix matrix = new Matrix();
         matrix.postRotate(degrees);
@@ -302,40 +427,85 @@ public class VideoActivity extends AppCompatActivity {
         int num = rand.nextInt(3);
 
         if(num == 0) {
-            txtViewMimic.setText("Sad");
+            // undicode for sad
+            int unicode = 0x1F622;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewMimic.setText(emoji);
             mimicEmoji = 0;
         } else if (num == 1) {
-            txtViewMimic.setText("Happy");
+            // unicoe for happy
+            int unicode = 0x1F604;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewMimic.setText(emoji);
             mimicEmoji = 1;
         } else if (num == 2) {
-            txtViewMimic.setText("Angry");
+            // unicode for angry
+            int unicode = 0x1F621;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewMimic.setText(emoji);
             mimicEmoji = 2;
         }
         this.txtViewMimic = txtViewMimic;
     }
 
-    private void setGuessedEmoji(){
+    private int guessEmoji(float[][][][] input){
+
+        // 4. Define the output tensor; adjust NUM_CLASSES based on your model's output dimensions.
+        int NUM_CLASSES = 3;  // Update this if your model predicts a different number of classes
+        float[][] output = new float[1][NUM_CLASSES];
+
+        // 5. Get the TFLite interpreter instance and run inference.
+        TFLiteModelLoader tfliteModel = TFLiteModelLoader.getInstance(getApplicationContext());
+        Interpreter interpreter = tfliteModel.getInterpreter();
+        interpreter.run(input, output);
+
+        // 6. Find the index with the highest probability.
+        int maxIndex = 0;
+        for (int i = 1; i < NUM_CLASSES; i++) {
+            if (output[0][i] > output[0][maxIndex]) {
+                maxIndex = i;
+            }
+        }
+
+        return maxIndex;
+
+
+    }
+
+    private void setGuessedEmoji(int guess){
         TextView txtViewGuess = (TextView)findViewById(R.id.mGuess);
 
-        Random rand = new Random();
-        int num = rand.nextInt(3);
+        // TODO: låt metoden ta en int som input och byt efter det ut random mot den inten. (ta in matris)
+        int num = guess;
 
-
+        //Random rand = new Random();
+        //int num = rand.nextInt(3);
 
         if(num == 0) {
-            txtViewGuess.setText("Sad");
+            // sad
+            int unicode = 0x1F622;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewGuess.setText(emoji);
             guessedEmoji = 0;
         } else if (num == 1) {
-            txtViewGuess.setText("Happy");
+            // happy
+            int unicode = 0x1F604;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewGuess.setText(emoji);
             guessedEmoji = 1;
         } else if (num == 2) {
-            txtViewGuess.setText("Angry");
+            // angry
+            int unicode = 0x1F621;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewGuess.setText(emoji);
             guessedEmoji = 2;
         }
         this.txtViewGuess = txtViewGuess;
         guessEqualsMimic();
     }
-
+    public String getEmojiByUnicode(int unicode){
+        return new String(Character.toChars(unicode));
+    }
     private void guessEqualsMimic(){
         TextView txtViewPoints = (TextView) findViewById(R.id.mPoints);
 
@@ -346,12 +516,6 @@ public class VideoActivity extends AppCompatActivity {
             setEmojiToMimic();
         }
     }
-
-    private String guessEmoji(){
-        // TODO: implement method in working thread!
-        return "hej";
-    }
-
 
     private void closeCamera() {
         if (cameraCaptureSession != null) {
