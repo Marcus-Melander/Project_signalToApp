@@ -238,8 +238,8 @@ public class VideoActivity extends AppCompatActivity {
         int[] rgbArray = new int[width * height];
 
         // Pre-calculate the coordinates for the centered 300x300 square.
-        int squareSize = 300;
-        int cornerLineLength = 70;
+        int squareSize = 225;
+        int cornerLineLength = 50;
         int thickness = 3;
         int squareLeft = width / 2 - squareSize / 2;
         int squareTop = height / 2 - squareSize / 2;
@@ -316,96 +316,70 @@ public class VideoActivity extends AppCompatActivity {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
 
-        // Define the centered 300x300 white square.
-        int squareSize = 300;
+        // Define the new square size: 225x225 pixels centered in the image.
+        int squareSize = 225;
         int squareLeft = width / 2 - squareSize / 2;
         int squareTop = height / 2 - squareSize / 2;
 
-        // Define the inner region: offset by 1 pixel from the border to get 299x299.
-        int regionX = squareLeft + 1;
-        int regionY = squareTop + 1;
-        int regionWidth = 299;
-        int regionHeight = 299;
+        // Extract the 225x225 square region.
+        Bitmap squareBitmap = Bitmap.createBitmap(bitmap, squareLeft, squareTop, squareSize, squareSize);
 
-        // Extract the inner region from the bitmap.
-        Bitmap innerBitmap = Bitmap.createBitmap(bitmap, regionX, regionY, regionWidth, regionHeight);
+        // Scale the extracted region to 224x224.
+        Bitmap scaledBitmap = Bitmap.createScaledBitmap(squareBitmap, 224, 224, true);
 
-        // Prepare histograms for each RGB channel (0-255 bins).
-        int[] histR = new int[256];
-        int[] histG = new int[256];
-        int[] histB = new int[256];
+        int targetWidth = scaledBitmap.getWidth();   // Should be 224.
+        int targetHeight = scaledBitmap.getHeight();   // Should be 224.
+        int totalPixels = targetWidth * targetHeight;
 
-        // Store channel values for later processing.
-        int[][] redChannel   = new int[regionHeight][regionWidth];
-        int[][] greenChannel = new int[regionHeight][regionWidth];
-        int[][] blueChannel  = new int[regionHeight][regionWidth];
+        // Prepare to compute the grayscale intensity and build the histogram.
+        int[][] intensityMatrix = new int[targetHeight][targetWidth];
+        int[] histogram = new int[256];  // For intensities 0-255.
 
-        // First pass: Extract RGB values and build histograms.
-        for (int i = 0; i < regionHeight; i++) {
-            for (int j = 0; j < regionWidth; j++) {
-                int pixel = innerBitmap.getPixel(j, i);
+        // Convert each pixel to grayscale and build the histogram.
+        for (int i = 0; i < targetHeight; i++) {
+            for (int j = 0; j < targetWidth; j++) {
+                int pixel = scaledBitmap.getPixel(j, i);
                 int r = Color.red(pixel);
                 int g = Color.green(pixel);
                 int b = Color.blue(pixel);
-                redChannel[i][j]   = r;
-                greenChannel[i][j] = g;
-                blueChannel[i][j]  = b;
-                histR[r]++;
-                histG[g]++;
-                histB[b]++;
+                // Compute grayscale intensity using Rec. 601 formula.
+                int intensity = (int)(0.299 * r + 0.587 * g + 0.114 * b);
+                intensityMatrix[i][j] = intensity;
+                histogram[intensity]++;
             }
         }
 
-        // Compute cumulative distribution functions (CDF) for each channel.
-        int[] cdfR = new int[256];
-        int[] cdfG = new int[256];
-        int[] cdfB = new int[256];
-        cdfR[0] = histR[0];
-        cdfG[0] = histG[0];
-        cdfB[0] = histB[0];
+        // Compute the cumulative distribution function (CDF) for the histogram.
+        int[] cdf = new int[256];
+        cdf[0] = histogram[0];
         for (int i = 1; i < 256; i++) {
-            cdfR[i] = cdfR[i - 1] + histR[i];
-            cdfG[i] = cdfG[i - 1] + histG[i];
-            cdfB[i] = cdfB[i - 1] + histB[i];
+            cdf[i] = cdf[i - 1] + histogram[i];
         }
 
-        // Find the minimum non-zero CDF values for each channel.
-        int cdfMinR = 0, cdfMinG = 0, cdfMinB = 0;
+        // Find the minimum nonzero value in the CDF.
+        int cdfMin = 0;
         for (int i = 0; i < 256; i++) {
-            if (cdfR[i] != 0) { cdfMinR = cdfR[i]; break; }
-        }
-        for (int i = 0; i < 256; i++) {
-            if (cdfG[i] != 0) { cdfMinG = cdfG[i]; break; }
-        }
-        for (int i = 0; i < 256; i++) {
-            if (cdfB[i] != 0) { cdfMinB = cdfB[i]; break; }
+            if (cdf[i] != 0) {
+                cdfMin = cdf[i];
+                break;
+            }
         }
 
-        int totalPixels = regionWidth * regionHeight;
-
-        // Build lookup tables (LUT) for each channel using the histogram equalization formula:
+        // Build a lookup table (LUT) using the histogram equalization formula:
         // new_value = round((cdf[value] - cdfMin) / (totalPixels - cdfMin) * 255)
-        int[] lutR = new int[256];
-        int[] lutG = new int[256];
-        int[] lutB = new int[256];
+        int[] lut = new int[256];
         for (int i = 0; i < 256; i++) {
-            lutR[i] = Math.round(((float)(cdfR[i] - cdfMinR) / (totalPixels - cdfMinR)) * 255);
-            lutG[i] = Math.round(((float)(cdfG[i] - cdfMinG) / (totalPixels - cdfMinG)) * 255);
-            lutB[i] = Math.round(((float)(cdfB[i] - cdfMinB) / (totalPixels - cdfMinB)) * 255);
+            lut[i] = Math.round(((float)(cdf[i] - cdfMin) / (totalPixels - cdfMin)) * 255);
         }
 
-        // Create the output array with shape [1][299][299][3].
-        float[][][][] output = new float[1][regionHeight][regionWidth][3];
+        // Create the output 4D float array with shape [1][224][224][1].
+        float[][][][] output = new float[1][targetHeight][targetWidth][1];
 
-        // Apply the LUT to each pixel's RGB channels, normalize to [0,1] (dividing by 255), and store in the output array.
-        for (int i = 0; i < regionHeight; i++) {
-            for (int j = 0; j < regionWidth; j++) {
-                int newR = lutR[ redChannel[i][j] ];
-                int newG = lutG[ greenChannel[i][j] ];
-                int newB = lutB[ blueChannel[i][j] ];
-                output[0][i][j][0] = newR / 255.0f;
-                output[0][i][j][1] = newG / 255.0f;
-                output[0][i][j][2] = newB / 255.0f;
+        // Apply the LUT to each pixel's intensity, normalize to [0,1], and store in the output.
+        for (int i = 0; i < targetHeight; i++) {
+            for (int j = 0; j < targetWidth; j++) {
+                int eqIntensity = lut[intensityMatrix[i][j]];
+                output[0][i][j][0] = eqIntensity / 255.0f;
             }
         }
 
