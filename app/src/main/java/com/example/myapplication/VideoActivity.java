@@ -3,11 +3,9 @@ package com.example.myapplication;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
-import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.*;
 import android.media.Image;
@@ -27,13 +25,18 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
-import org.tensorflow.lite.Interpreter;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.face.FaceDetection;
+import com.google.mlkit.vision.face.FaceDetector;
+import com.google.mlkit.vision.face.FaceDetectorOptions;
 
-import com.example.myapplication.TFLiteModelLoader;
+import org.tensorflow.lite.Interpreter;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class VideoActivity extends AppCompatActivity {
 
@@ -45,6 +48,7 @@ public class VideoActivity extends AppCompatActivity {
     private Handler backgroundHandler;
     private HandlerThread backgroundThread;
     private Handler mainHandler;
+    private FaceDetector faceDetector;
     private TextView txtViewMimic;
     private TextView txtViewGuess;
     private Integer points = 0;
@@ -61,6 +65,12 @@ public class VideoActivity extends AppCompatActivity {
 
         mainHandler = new Handler(Looper.getMainLooper());
         processedImageView = findViewById(R.id.processedImageView);
+        FaceDetectorOptions options = new FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+                .build();
+        faceDetector = FaceDetection.getClient(options);
         openCamera();
         setEmojiToMimic();
     }
@@ -189,6 +199,7 @@ public class VideoActivity extends AppCompatActivity {
             matrix.postRotate(90);
             matrix.preScale(-1.0f, 1.0f);
 
+
             Bitmap rotatedBitmap = Bitmap.createBitmap(
                     bitmap,
                     0,
@@ -203,20 +214,48 @@ public class VideoActivity extends AppCompatActivity {
                 thread = new Thread(() -> {
                     running = true;
                     float[][][][] pixelsToUse = pixelsToUse(bitmap);
-                    if (containsFace(pixelsToUse)) {
-
+                    if (detectFace(rotatedBitmap)) {
                         int guess = guessEmoji(pixelsToUse);
                         setGuessedEmoji(guess);
                         running = false;
+                    } else {
+                        setGuessedEmoji(-1);
                     }
                 });
                 thread.start();
-
             }
         }
     }
-    private boolean containsFace(float[][][][] matrix){
-        // TODO: call model to check for face
+
+    private boolean detectFace(Bitmap bitmap) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean result = new AtomicBoolean();
+        InputImage inputImage = InputImage.fromBitmap(bitmap, 0);
+
+        faceDetector.process(inputImage)
+                .addOnSuccessListener(faces -> {
+                    if (!faces.isEmpty()) {
+                        Log.d("FaceDetection", "Face detected!");
+                        result.set(true);
+                    } else {
+                        Log.d("FaceDetection", "No face detected.");
+                    }
+                    latch.countDown();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("FaceDetection", "Face detection failed", e);
+                    latch.countDown();
+                });
+
+        try {
+            latch.await(); // Wait for the detection to finish
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return result.get();
+    }
+
+    private boolean containsFace(float[][][][] matrix) {
 
         return true;
     }
@@ -499,6 +538,8 @@ public class VideoActivity extends AppCompatActivity {
             String emoji = getEmojiByUnicode(unicode);
             txtViewGuess.setText(emoji);
             guessedEmoji = 2;
+        } else if(num == -1) {
+            txtViewGuess.setText("No face detected");
         }
         this.txtViewGuess = txtViewGuess;
         guessEqualsMimic();
