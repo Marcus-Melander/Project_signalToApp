@@ -316,7 +316,7 @@ public class VideoActivity extends AppCompatActivity {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
 
-        // Define the new square size: 225x225 pixels centered in the image.
+        // Define the centered square size: 225x225 pixels.
         int squareSize = 225;
         int squareLeft = width / 2 - squareSize / 2;
         int squareTop = height / 2 - squareSize / 2;
@@ -327,13 +327,13 @@ public class VideoActivity extends AppCompatActivity {
         // Scale the extracted region to 224x224.
         Bitmap scaledBitmap = Bitmap.createScaledBitmap(squareBitmap, 224, 224, true);
 
-        int targetWidth = scaledBitmap.getWidth();   // Should be 224.
-        int targetHeight = scaledBitmap.getHeight();   // Should be 224.
+        int targetWidth = scaledBitmap.getWidth();   // Expected 224
+        int targetHeight = scaledBitmap.getHeight();   // Expected 224
         int totalPixels = targetWidth * targetHeight;
 
-        // Prepare to compute the grayscale intensity and build the histogram.
+        // Prepare arrays for grayscale intensity and histogram.
         int[][] intensityMatrix = new int[targetHeight][targetWidth];
-        int[] histogram = new int[256];  // For intensities 0-255.
+        int[] histogram = new int[256];  // For intensity values 0-255.
 
         // Convert each pixel to grayscale and build the histogram.
         for (int i = 0; i < targetHeight; i++) {
@@ -342,7 +342,7 @@ public class VideoActivity extends AppCompatActivity {
                 int r = Color.red(pixel);
                 int g = Color.green(pixel);
                 int b = Color.blue(pixel);
-                // Compute grayscale intensity using Rec. 601 formula.
+                // Compute luminance using the Rec. 601 formula.
                 int intensity = (int)(0.299 * r + 0.587 * g + 0.114 * b);
                 intensityMatrix[i][j] = intensity;
                 histogram[intensity]++;
@@ -372,14 +372,17 @@ public class VideoActivity extends AppCompatActivity {
             lut[i] = Math.round(((float)(cdf[i] - cdfMin) / (totalPixels - cdfMin)) * 255);
         }
 
-        // Create the output 4D float array with shape [1][224][224][1].
-        float[][][][] output = new float[1][targetHeight][targetWidth][1];
+        // Create the output 4D float array with shape [1][224][224][3].
+        float[][][][] output = new float[1][targetHeight][targetWidth][3];
 
-        // Apply the LUT to each pixel's intensity, normalize to [0,1], and store in the output.
+        // Apply the LUT to each pixel's intensity, normalize to [0,1], and copy the same value to all 3 channels.
         for (int i = 0; i < targetHeight; i++) {
             for (int j = 0; j < targetWidth; j++) {
                 int eqIntensity = lut[intensityMatrix[i][j]];
-                output[0][i][j][0] = eqIntensity / 255.0f;
+                float normalized = eqIntensity / 255.0f;
+                output[0][i][j][0] = normalized; // Red channel
+                output[0][i][j][1] = normalized; // Green channel
+                output[0][i][j][2] = normalized; // Blue channel
             }
         }
 
@@ -419,11 +422,11 @@ public class VideoActivity extends AppCompatActivity {
             txtViewMimic.setText(emoji);
             mimicEmoji = 2;
         } else if (num == 3) {
-        // unicode for no face
-        int unicode = 0x1FAE5;
-        String emoji = getEmojiByUnicode(unicode);
-        txtViewMimic.setText(emoji);
-        mimicEmoji = 3;
+            // unicode for no face
+            int unicode = 0x1FAE5;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewMimic.setText(emoji);
+            mimicEmoji = 3;
     }
         this.txtViewMimic = txtViewMimic;
     }
