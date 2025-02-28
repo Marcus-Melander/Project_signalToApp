@@ -14,7 +14,7 @@ public class TFLiteModelLoader {
 
     private TFLiteModelLoader(Context context) {
         try {
-            MappedByteBuffer modelBuffer = loadModelFile(context, "Emotion_detection_V1.0.tflite");
+            MappedByteBuffer modelBuffer = loadModelFile(context, "v2.0.tflite");
             interpreter = new Interpreter(modelBuffer);
         } catch (IOException e) {
             e.printStackTrace();
