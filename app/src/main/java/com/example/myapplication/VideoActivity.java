@@ -418,7 +418,13 @@ public class VideoActivity extends AppCompatActivity {
             String emoji = getEmojiByUnicode(unicode);
             txtViewMimic.setText(emoji);
             mimicEmoji = 2;
-        }
+        } else if (num == 3) {
+        // unicode for no face
+        int unicode = 0x1FAE5;
+        String emoji = getEmojiByUnicode(unicode);
+        txtViewMimic.setText(emoji);
+        mimicEmoji = 3;
+    }
         this.txtViewMimic = txtViewMimic;
     }
 
