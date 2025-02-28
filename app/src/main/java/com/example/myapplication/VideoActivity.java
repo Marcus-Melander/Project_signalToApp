@@ -1,5 +1,6 @@
 package com.example.myapplication;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -91,7 +92,7 @@ public class VideoActivity extends AppCompatActivity {
                     ImageFormat.YUV_420_888, 2);
             imageReader.setOnImageAvailableListener(this::onImageAvailable, backgroundHandler);
 
-            if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 return;
             }
             cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
@@ -203,22 +204,14 @@ public class VideoActivity extends AppCompatActivity {
                 thread = new Thread(() -> {
                     running = true;
                     float[][][][] pixelsToUse = pixelsToUse(bitmap);
-                    if (containsFace(pixelsToUse)) {
-
-                        int guess = guessEmoji(pixelsToUse);
-                        setGuessedEmoji(guess);
-                        running = false;
-                    }
+                    int guess = guessEmoji(pixelsToUse);
+                    setGuessedEmoji(guess);
+                    running = false;
                 });
                 thread.start();
 
             }
         }
-    }
-    private boolean containsFace(float[][][][] matrix){
-        // TODO: call model to check for face
-
-        return true;
     }
 
     private Bitmap yuvToRgbBitmap(Image image) {
@@ -304,11 +297,6 @@ public class VideoActivity extends AppCompatActivity {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         bitmap.setPixels(rgbArray, 0, width, 0, 0, width, height);
 
-        // TODO: erase
-        //Rotate the bitmap 90 degrees (required for correct display on Xperia XA1)
-        //int totalRotation=270;
-        //Bitmap rotatedBitmap = rotateBitmap(bitmap, totalRotation);
-
         return bitmap;
     }
     public float[][][][] pixelsToUse(Bitmap bitmap) {
@@ -389,12 +377,6 @@ public class VideoActivity extends AppCompatActivity {
         return output;
     }
 
-    // TODO: erase
-    private Bitmap rotateBitmap(Bitmap bitmap, int degrees) {
-        Matrix matrix = new Matrix();
-        matrix.postRotate(degrees);
-        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-    }
 
     @SuppressLint("SetTextI18n")
     private void setEmojiToMimic() {
@@ -404,8 +386,8 @@ public class VideoActivity extends AppCompatActivity {
         int num = rand.nextInt(3);
 
         if(num == 0) {
-            // undicode for sad
-            int unicode = 0x1F622;
+            // undicode for angry
+            int unicode = 0x1F621;
             String emoji = getEmojiByUnicode(unicode);
             txtViewMimic.setText(emoji);
             mimicEmoji = 0;
@@ -416,25 +398,19 @@ public class VideoActivity extends AppCompatActivity {
             txtViewMimic.setText(emoji);
             mimicEmoji = 1;
         } else if (num == 2) {
-            // unicode for angry
-            int unicode = 0x1F621;
-            String emoji = getEmojiByUnicode(unicode);
-            txtViewMimic.setText(emoji);
-            mimicEmoji = 2;
-        } else if (num == 3) {
-            // unicode for no face
-            int unicode = 0x1FAE5;
+            // unicode for sad
+            int unicode = 0x1F622;
             String emoji = getEmojiByUnicode(unicode);
             txtViewMimic.setText(emoji);
             mimicEmoji = 3;
-    }
+        }
         this.txtViewMimic = txtViewMimic;
     }
 
     private int guessEmoji(float[][][][] input){
 
         // 4. Define the output tensor; adjust NUM_CLASSES based on your model's output dimensions.
-        int NUM_CLASSES = 3;  // Update this if your model predicts a different number of classes
+        int NUM_CLASSES = 4;  // Update this if your model predicts a different number of classes
         float[][] output = new float[1][NUM_CLASSES];
 
         // 5. Get the TFLite interpreter instance and run inference.
@@ -457,7 +433,6 @@ public class VideoActivity extends AppCompatActivity {
 
     private void setGuessedEmoji(int guess){
         TextView txtViewGuess = (TextView)findViewById(R.id.mGuess);
-
         // TODO: låt metoden ta en int som input och byt efter det ut random mot den inten. (ta in matris)
         int num = guess;
 
@@ -465,8 +440,8 @@ public class VideoActivity extends AppCompatActivity {
         //int num = rand.nextInt(3);
 
         if(num == 0) {
-            // sad
-            int unicode = 0x1F622;
+            // angry
+            int unicode = 0x1F621;
             String emoji = getEmojiByUnicode(unicode);
             txtViewGuess.setText(emoji);
             guessedEmoji = 0;
@@ -477,12 +452,19 @@ public class VideoActivity extends AppCompatActivity {
             txtViewGuess.setText(emoji);
             guessedEmoji = 1;
         } else if (num == 2) {
-            // angry
-            int unicode = 0x1F621;
+            // sad
+            int unicode = 0x274C;
             String emoji = getEmojiByUnicode(unicode);
             txtViewGuess.setText(emoji);
             guessedEmoji = 2;
+        } else if (num == 3) {
+            // unicode for no face
+            int unicode = 0x1F622;
+            String emoji = getEmojiByUnicode(unicode);
+            txtViewGuess.setText(emoji);
+            guessedEmoji = 3;
         }
+        Log.i("guess", "face " + guessedEmoji);
         this.txtViewGuess = txtViewGuess;
         guessEqualsMimic();
     }
